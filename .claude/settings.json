@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "RelationalAI": {
+      "source": {
+        "source": "github",
+        "repo": "RelationalAI/rai-agent-skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "rai@RelationalAI": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(snow sql*)",
+      "Bash(snow connection test*)",
+      "Bash(snow connection list*)",
+      "Bash(snow --version*)",
+      "Bash(rai reasoners list*)",
+      "Bash(uv pip list*)",
+      "Bash(uv pip show *)",
+      "Bash(uv python list*)"
+    ]
+  }
+}

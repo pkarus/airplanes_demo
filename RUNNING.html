@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EHAM A-CDM Demo - Snowsight run map</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fafafa;
+    --fg: #1f1f1f;
+    --muted: #6b6b6b;
+    --card: #ffffff;
+    --border: #e2e2e2;
+    --accent: #2a6db0;
+    --code-bg: #f1f3f5;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 14px rgba(0,0,0,.05);
+
+    --setup: #4a90d9;
+    --warm:  #d9a14a;
+    --show:  #5cb85c;
+
+    --sql:      #2a6db0;
+    --notebook: #2a9d8f;
+    --chat:     #d97a4a;
+
+    --reasoner-rules:  #2a6db0;
+    --reasoner-graph:  #8a4fbe;
+    --reasoner-heur:   #d4a017;
+    --reasoner-solver: #d97a4a;
+    --reasoner-rule5:  #5cb85c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161616;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --card: #1f1f1f;
+      --border: #303030;
+      --accent: #6fb0f0;
+      --code-bg: #262626;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    margin: 0;
+    padding: 2.5rem 1.5rem 4rem;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  h1 { font-size: 2.1rem; margin: 0 0 .3rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.45rem; margin: 0; letter-spacing: -.005em; }
+  h3 { font-size: 1.05rem; margin: 0; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin: .3rem 0 1.1rem; }
+  .audience {
+    display: inline-block; padding: .15rem .55rem;
+    background: var(--code-bg); color: var(--muted);
+    border-radius: 999px; font-size: .78rem;
+    margin-bottom: 1.5rem;
+  }
+
+  section { margin: 2rem 0; }
+  .section-head {
+    display: flex; align-items: baseline; gap: .8rem;
+    margin: 0 0 1rem; flex-wrap: wrap;
+  }
+  .section-head .hint { color: var(--muted); font-size: .88rem; }
+  .tag {
+    display: inline-block; padding: .12rem .55rem;
+    border-radius: 4px; font-size: .78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em;
+    color: #fff;
+  }
+  .tag.setup { background: var(--setup); }
+  .tag.warm  { background: var(--warm); }
+  .tag.show  { background: var(--show); }
+
+  /* ============== brains ============== */
+  .brains {
+    display: grid; gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    margin-top: .8rem;
+  }
+  .brain {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .brain h3 { margin: 0 0 .55rem; font-size: 1rem; display: flex; align-items: center; gap: .45rem; }
+  .brain .what, .brain .vs, .brain .where {
+    margin: .55rem 0 0; font-size: .9rem;
+  }
+  .brain .label {
+    display: block; font-size: .68rem;
+    text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); font-weight: 600; margin-bottom: .15rem;
+  }
+  .rpill {
+    display: inline-block; padding: .1rem .5rem;
+    border-radius: 999px; font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: #fff;
+  }
+  .rpill.rules  { background: var(--reasoner-rules); }
+  .rpill.graph  { background: var(--reasoner-graph); }
+  .rpill.heur   { background: var(--reasoner-heur); }
+  .rpill.solver { background: var(--reasoner-solver); }
+  .rpill.rule5  { background: var(--reasoner-rule5); }
+  .surface {
+    display: inline-block; padding: .12rem .55rem;
+    border-radius: 4px; font-size: .72rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: #fff;
+  }
+  .surface.sql      { background: var(--sql); }
+  .surface.notebook { background: var(--notebook); }
+  .surface.chat     { background: var(--chat); }
+  .surface.cli      { background: #555; }
+
+  /* ============== phase tabs ============== */
+  .ptabs {
+    margin-top: 1.4rem;
+  }
+  .ptabs > input { display: none; }
+  .phases {
+    display: flex; align-items: stretch; gap: .8rem;
+    margin: 0 0 1rem; flex-wrap: wrap;
+  }
+  .phase {
+    flex: 1 1 220px; min-width: 200px;
+    display: flex; align-items: center; gap: .8rem;
+    padding: .8rem 1rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: transform .08s ease, border-color .15s ease;
+  }
+  .phase:hover { transform: translateY(-1px); }
+  .phase.setup { border-top: 3px solid var(--setup); }
+  .phase.warm  { border-top: 3px solid var(--warm); }
+  .phase.show  { border-top: 3px solid var(--show); }
+  .phase .num {
+    font-size: 1.6rem; font-weight: 700; color: var(--muted);
+    min-width: 1.6rem;
+  }
+  .phase .title { font-weight: 600; font-size: 1.05rem; }
+  .phase .sub { color: var(--muted); font-size: .78rem; }
+  .arrow { align-self: center; color: var(--muted); font-size: 1.4rem; }
+  .ppanels { display: contents; }
+  .ppanel { display: none; }
+  #pt1:checked ~ .ppanels .ppanel:nth-of-type(1),
+  #pt2:checked ~ .ppanels .ppanel:nth-of-type(2),
+  #pt3:checked ~ .ppanels .ppanel:nth-of-type(3) {
+    display: block;
+  }
+  #pt1:checked ~ .phases .phase.setup,
+  #pt2:checked ~ .phases .phase.warm,
+  #pt3:checked ~ .phases .phase.show {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(42,109,176,.15), var(--shadow);
+  }
+
+  /* ============== steps ============== */
+  .steps { display: grid; gap: .9rem; }
+  .step {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.1rem; box-shadow: var(--shadow);
+  }
+  .step .head {
+    display: flex; align-items: center; gap: .6rem; margin-bottom: .35rem;
+    flex-wrap: wrap;
+  }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.7rem; height: 1.7rem;
+    background: var(--accent); color: #fff;
+    border-radius: 50%; font-size: .85rem; font-weight: 700;
+  }
+  .step p.why { margin: .35rem 0 0; font-size: .92rem; color: var(--fg); }
+  .step code, .qcard code, .scene code, .brain code, .callout code, p code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--code-bg);
+    padding: .05rem .35rem;
+    border-radius: 3px;
+    font-size: .88em;
+  }
+  pre {
+    background: var(--code-bg); padding: .7rem .9rem;
+    border-radius: 6px; overflow-x: auto;
+    font-size: .85rem; line-height: 1.4;
+    margin: .5rem 0 0;
+  }
+  pre code { background: transparent; padding: 0; }
+
+  /* ============== scenes ============== */
+  .scenes { display: grid; gap: .9rem; }
+  details.scene {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; box-shadow: var(--shadow);
+    border-left: 4px solid var(--scene-color);
+    --scene-color: var(--accent);
+  }
+  details.scene.sql      { --scene-color: var(--sql); }
+  details.scene.notebook { --scene-color: var(--notebook); }
+  details.scene.chat     { --scene-color: var(--chat); }
+  details.scene.cli      { --scene-color: #555; }
+  details.scene summary {
+    cursor: pointer; padding: .9rem 1.1rem;
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    list-style: none;
+  }
+  details.scene summary::-webkit-details-marker { display: none; }
+  details.scene .stitle { font-weight: 600; font-size: 1rem; }
+  details.scene .scene-body { padding: 0 1.1rem 1rem; display: grid; gap: .55rem; }
+  details.scene .scene-body .pitch {
+    margin: 0 0 .5rem; font-size: .95rem; font-weight: 500;
+  }
+  details.scene .scene-body ol { margin: 0 0 .4rem 1.1rem; padding: 0; }
+  details.scene .scene-body ol li { margin: .2rem 0; }
+
+  /* ============== question deck ============== */
+  .qtabs > input { display: none; }
+  .qtab-bar {
+    display: flex; gap: .35rem; margin: 0 0 1rem; flex-wrap: wrap;
+  }
+  .qtab {
+    cursor: pointer; padding: .5rem .8rem;
+    display: flex; align-items: center; gap: .4rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; font-size: .88rem;
+    transition: background .12s ease, border-color .15s ease;
+  }
+  .qtab:hover { background: var(--code-bg); }
+  .qpanels { display: contents; }
+  .qpanel { display: none; }
+  #qt1:checked ~ .qpanels .qpanel:nth-of-type(1),
+  #qt2:checked ~ .qpanels .qpanel:nth-of-type(2),
+  #qt3:checked ~ .qpanels .qpanel:nth-of-type(3),
+  #qt4:checked ~ .qpanels .qpanel:nth-of-type(4),
+  #qt5:checked ~ .qpanels .qpanel:nth-of-type(5) { display: block; }
+  #qt1:checked ~ .qtab-bar label[for=qt1],
+  #qt2:checked ~ .qtab-bar label[for=qt2],
+  #qt3:checked ~ .qtab-bar label[for=qt3],
+  #qt4:checked ~ .qtab-bar label[for=qt4],
+  #qt5:checked ~ .qtab-bar label[for=qt5] {
+    border-color: var(--accent); background: var(--code-bg);
+    box-shadow: 0 0 0 2px rgba(42,109,176,.18);
+  }
+  .qnum {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff;
+    width: 1.45rem; height: 1.45rem; border-radius: 4px;
+    font-size: .72rem; font-weight: 700;
+  }
+  .qcard {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.05rem 1.1rem; box-shadow: var(--shadow);
+  }
+  .qhead {
+    display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+    margin-bottom: .35rem;
+  }
+  .qhead h3 { font-size: 1.1rem; margin-left: .1rem; }
+  .qsub { color: var(--muted); margin: 0 0 .8rem; font-size: .85rem; }
+  .qgrid {
+    display: grid; gap: 1rem;
+    grid-template-columns: 1.05fr .95fr;
+  }
+  @media (max-width: 760px) {
+    .qgrid { grid-template-columns: 1fr; }
+  }
+  .qcard .narr { display: grid; gap: .65rem; font-size: .9rem; }
+  .qcard .narr .label {
+    font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    font-weight: 600; margin-bottom: -.3rem;
+  }
+  .qcard table {
+    width: 100%; border-collapse: collapse;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .76rem;
+  }
+  .qcard table th, .qcard table td {
+    border-bottom: 1px solid var(--border);
+    padding: .3rem .5rem; text-align: left;
+  }
+  .qcard table th {
+    background: var(--code-bg); font-weight: 600; color: var(--muted);
+    text-transform: uppercase; font-size: .68rem; letter-spacing: .05em;
+  }
+  .qcard table td.num { text-align: right; }
+  .qcard .result-meta {
+    color: var(--muted); font-size: .78rem; margin: 0 0 .35rem;
+  }
+  .qcard .result-fig {
+    margin: .8rem 0 .3rem;
+    padding: .35rem;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .qcard .result-fig img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+  }
+  .qcard .result-fig figcaption {
+    font-size: .75rem;
+    color: var(--muted);
+    padding: .35rem .55rem 0;
+  }
+
+  .callout {
+    margin: 1.4rem 0; padding: .9rem 1.1rem;
+    background: var(--card); border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 6px;
+    font-size: .94rem;
+  }
+  .callout strong { color: var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>EHAM A-CDM Decision Hub - Run map</h1>
+  <p class="lede">
+    A single PyRel ontology over <code>ACDM_DEMO.EHAM</code> (320 flights on
+    2026-10-14) drives a notebook, a Snowflake Intelligence agent, and the
+    same Snowflake account the operations team already has. Four reasoners,
+    five acts, one model.
+  </p>
+  <span class="audience">Driver: Piotr (Customer Engineer) - Audience: ATC / A-CDM stakeholders - Surface: Snowsight + local CLI</span>
+
+  <div class="callout">
+    <strong>What's already done for you.</strong>
+    Snowflake database <code>ACDM_DEMO.EHAM</code> is loaded (11 tables, change
+    tracking on). The RAI Native App is installed on the demo account, the
+    <code>acdm</code> agent is registered in
+    <code>SNOWFLAKE_INTELLIGENCE.AGENTS</code>, and the two reasoner engines
+    (<code>acdm_logic_l</code>, <code>acdm_prescriptive_m</code>) are named so
+    they survive auto-suspend.
+  </div>
+
+  <div class="callout">
+    <strong>Engine sizing.</strong>
+    Logic is pinned to <code>HIGHMEM_X64_L</code>
+    (<code>acdm_logic_l</code>); Prescriptive is pinned to
+    <code>HIGHMEM_X64_M</code> (<code>acdm_prescriptive_m</code> - Prescriptive
+    is not available at L on either cloud). Named engines persist across
+    sessions, so once the warm-up notebook run has happened the LP solver
+    round-trip is ~3-8 seconds end-to-end including network and result
+    materialisation.
+  </div>
+
+  <!-- ============== Four brains (reasoners) ============== -->
+  <section>
+    <div class="section-head">
+      <h2>The four RAI reasoners we light up in this demo</h2>
+      <span class="hint">read once - it's the "why are we here" for your audience</span>
+    </div>
+    <p style="color:var(--muted); margin:0 0 .7rem;">
+      A-CDM is built on shared situational awareness across handlers, ATC,
+      gate planners and ATFM. Today most of that integration is portals,
+      spreadsheets, and tribal knowledge. We define
+      <strong>concepts</strong> (Flight, Stand, Operator, GroundHandler, Slot
+      ...), <strong>relationships</strong> between them (a Flight is
+      <em>handled by</em> a GroundHandler; a Flight <em>feeds</em> the next
+      Flight; a Flight <em>shares stand with</em> another), and
+      <strong>rules</strong> that derive new facts (a Flight is a
+      <em>TOBT violation</em> if its ARDT deviates from TOBT by more than 5
+      minutes per ICAO MS12). Every act below reads from <em>that</em> model,
+      not from raw tables.
+    </p>
+
+    <div class="brains">
+
+      <div class="brain">
+        <h3><span class="rpill rules">Rules</span> Logic</h3>
+        <div class="what">
+          <span class="label">What it does</span>
+          Reads <em>concepts</em> and <em>relationships</em>, applies
+          <em>rules</em> - filters, aggregations, derived facts ("this Flight
+          is a TOBT violation because |ARDT - TOBT| > 5 min"). The rule is
+          declared once and reused everywhere.
+        </div>
+        <div class="vs">
+          <span class="label">vs vanilla SQL</span>
+          SQL can compute the same number, but the next question ("...broken
+          down by aircraft type") is a new joined query. Derived flags become
+          ten copy-pasted CTEs you keep in sync forever.
+        </div>
+        <div class="where">
+          <span class="label">In this demo</span>
+          Act 1 (TOBT compliance) and the persistent rule in Act 5.
+        </div>
+      </div>
+
+      <div class="brain">
+        <h3><span class="rpill graph">Graph</span> Graph reasoner</h3>
+        <div class="what">
+          <span class="label">What it does</span>
+          Walks the network formed by a relationship - here, the
+          <strong>flight cascade graph</strong> built from
+          <code>feeds_callsign</code> (rotation), <code>slot_blocks</code>
+          (pushback contention), and <code>shares_stand</code>
+          (stand-occupancy overlap). The reasoner traverses any number of
+          hops in one query.
+        </div>
+        <div class="vs">
+          <span class="label">vs vanilla SQL</span>
+          Recursive CTEs work but get painful past two hops and choke on
+          cycles. This is exactly where customers usually buy a graph database
+          on the side. RAI gives it to you in the Snowflake account you
+          already have.
+        </div>
+        <div class="where">
+          <span class="label">In this demo</span>
+          Act 2 (rotation cascade from KL1234).
+        </div>
+      </div>
+
+      <div class="brain">
+        <h3><span class="rpill heur">Heuristic</span> Pre-computed score</h3>
+        <div class="what">
+          <span class="label">What it does</span>
+          A deterministic risk score expressed entirely as
+          <em>derived properties</em> in PyRel. No external ML. Same model,
+          new column.
+        </div>
+        <div class="vs">
+          <span class="label">vs an ML model</span>
+          You don't always need to train a model. When the rule is clear
+          (time pressure + pax weight + pier fit), a deterministic score is
+          explainable, reproducible, and audit-ready - and it's already a
+          <em>property on the ontology</em>, so other reasoners can read it.
+        </div>
+        <div class="where">
+          <span class="label">In this demo</span>
+          Act 3 (MS5 gate-conflict ranking). The talk-track originally used
+          the early-access Predictive reasoner; we use a heuristic per its
+          disclaimer.
+        </div>
+      </div>
+
+      <div class="brain">
+        <h3><span class="rpill solver">Solver</span> Prescriptive</h3>
+        <div class="what">
+          <span class="label">What it does</span>
+          We attach a <em>decision</em> to a junction concept
+          (<code>FlightSlot.assign</code>), declare <em>constraints</em>
+          (one slot per flight, single-runway capacity, no push before SOBT,
+          pier pushback &lt;= 2 simultaneous), and an <em>objective</em>
+          (minimise weighted delay). The reasoner hands the whole thing to
+          <code>HiGHS</code> and gets back the provably optimal answer.
+        </div>
+        <div class="vs">
+          <span class="label">vs vanilla SQL</span>
+          There is no SQL-native answer. Without RAI you'd export the storm
+          window to Python or AMPL, solve outside the warehouse, write the
+          answer back. RAI does it in place.
+        </div>
+        <div class="where">
+          <span class="label">In this demo</span>
+          Acts 4 and 5 (TSAT re-sequence under storm; re-solve with the
+          persistent rule).
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============== Timing ============== -->
+  <section>
+    <div class="section-head">
+      <h2>How long will this take? (measured timings)</h2>
+      <span class="hint">numbers from a real run on this account, 2026-05-19</span>
+    </div>
+    <p style="color:var(--muted); margin:0 0 .9rem;">
+      Two things to budget around: how long it takes to get the demo from
+      zero to warm, and how long each act takes once the engines are hot.
+      <code>prep_demo.py</code> handles the zero-to-warm path; the warm
+      latencies below tell you how long each SI question takes in front of
+      a live audience.
+    </p>
+
+    <div class="brains" style="grid-template-columns: 1fr 1fr;">
+      <div class="brain">
+        <h3 style="display:flex;align-items:center;gap:.45rem;">
+          <span class="surface cli">CLI</span> Zero to warm
+        </h3>
+        <div class="what" style="font-size:.88rem;">
+          <span class="label">Cold start (both engines suspended)</span>
+          <code>.venv/bin/python prep_demo.py</code> takes roughly
+          <strong>7-8 minutes</strong> end-to-end. Breakdown:
+          <ul style="margin:.35rem 0 .25rem 1.1rem; padding:0;">
+            <li>snow + schema + change-tracking + talk-track sanity: ~35 s</li>
+            <li>resume <code>acdm_logic_l</code> (HIGHMEM_X64_L): 60-90 s</li>
+            <li>resume <code>acdm_prescriptive_m</code> (HIGHMEM_X64_M): 60-90 s</li>
+            <li>Q1-Q5 end-to-end smoke test: ~5-6 min</li>
+            <li>agent status + Q1 chat round-trip: ~95 s</li>
+            <li>regenerate the 5 figures used in this page: ~30 s</li>
+          </ul>
+        </div>
+        <div class="vs" style="font-size:.88rem;">
+          <span class="label">Warm re-run (within the same hour)</span>
+          ~6 minutes. The engines stay READY (cuts ~2-3 min), CDC indexes are
+          cached. The CLI smoke test is still the dominant cost because Q4
+          and Q5 each ship an LP to the prescriptive engine. Use
+          <code>--skip-figures --skip-chat</code> to drop to ~5 min, or
+          <code>--skip-figures --skip-chat</code> with a previous warm run
+          to drop to ~30-45 s for status-only verification.
+        </div>
+      </div>
+
+      <div class="brain">
+        <h3 style="display:flex;align-items:center;gap:.45rem;">
+          <span class="surface chat">SI Chat</span> Per-act warm latency
+        </h3>
+        <div class="what" style="font-size:.88rem;">
+          <span class="label">End-to-end <code>agent.deploy chat "..."</code></span>
+          Measured live with both engines warm. Each number includes the LLM
+          round-trip, the sproc invocation, the PyRel query, and the LLM
+          response generation.
+          <table style="width:100%; font-size:.78rem; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:.4rem; border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:.3rem .4rem;">Act</th>
+                <th style="text-align:left;padding:.3rem .4rem;">Reasoner</th>
+                <th style="text-align:right;padding:.3rem .4rem;">Warm chat</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="padding:.25rem .4rem;">Act 1</td><td style="padding:.25rem .4rem;"><span class="rpill rules">Rules</span></td><td style="text-align:right;padding:.25rem .4rem;">~65 s</td></tr>
+              <tr><td style="padding:.25rem .4rem;">Act 2</td><td style="padding:.25rem .4rem;"><span class="rpill graph">Graph</span></td><td style="text-align:right;padding:.25rem .4rem;">~65 s</td></tr>
+              <tr><td style="padding:.25rem .4rem;">Act 3</td><td style="padding:.25rem .4rem;"><span class="rpill heur">Heur</span></td><td style="text-align:right;padding:.25rem .4rem;">~75 s</td></tr>
+              <tr><td style="padding:.25rem .4rem;">Act 4</td><td style="padding:.25rem .4rem;"><span class="rpill solver">Solver</span></td><td style="text-align:right;padding:.25rem .4rem;"><strong>~3 min</strong></td></tr>
+              <tr><td style="padding:.25rem .4rem;">Act 5</td><td style="padding:.25rem .4rem;"><span class="rpill rule5">Rule</span></td><td style="text-align:right;padding:.25rem .4rem;"><strong>~2-3 min</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="vs" style="font-size:.88rem;">
+          <span class="label">What dominates each number</span>
+          Roughly a third of every chat is the Anthropic / Cortex LLM
+          round-trip (think + tool call + summarise); the rest is the sproc
+          executing PyRel against the warm engine. Q4 and Q5 are slower
+          because the LP serialises 47 x 120 binary decisions, and the LLM
+          has 47 rows to narrate in the reply. The raw PyRel query times
+          inside the Snowsight notebook (no LLM) are 5-15 s per act.
+        </div>
+      </div>
+    </div>
+
+    <div class="callout" style="margin-top:1.1rem;">
+      <strong>Demo-day cadence.</strong> Run
+      <code>.venv/bin/python prep_demo.py</code> ~10 minutes before the call.
+      Once green, every notebook cell and rules/graph/heuristic SI question
+      responds in under 90 seconds. <strong>Budget 2-3 minutes of narrative
+      around Acts 4 and 5</strong> while the prescriptive engine solves -
+      that's what the talk track calls "the moment you don't take
+      questions." Resume-from-suspend on the prescriptive engine alone is
+      another 60-90 s, so don't let it auto-suspend mid-demo - keep the
+      tabs warm.
+    </div>
+  </section>
+
+  <!-- ============== Phase tabs ============== -->
+  <div class="ptabs">
+    <input type="radio" name="pt" id="pt1" checked>
+    <input type="radio" name="pt" id="pt2">
+    <input type="radio" name="pt" id="pt3">
+
+    <div class="phases">
+      <label class="phase setup" for="pt1">
+        <div class="num">1</div>
+        <div>
+          <div class="title">Pre-flight</div>
+          <span class="sub">verify, do once</span>
+        </div>
+      </label>
+      <div class="arrow">→</div>
+      <label class="phase warm" for="pt2">
+        <div class="num">2</div>
+        <div>
+          <div class="title">Warm up</div>
+          <span class="sub">~10 min before the call</span>
+        </div>
+      </label>
+      <div class="arrow">→</div>
+      <label class="phase show" for="pt3">
+        <div class="num">3</div>
+        <div>
+          <div class="title">Showtime</div>
+          <span class="sub">three surfaces, one story</span>
+        </div>
+      </label>
+    </div>
+
+    <div class="ppanels">
+
+  <!-- ============== Phase 1: Pre-flight ============== -->
+  <div class="ppanel">
+  <section>
+    <div class="section-head">
+      <span class="tag setup">1 - Pre-flight</span>
+      <h2>Confirm the room is set</h2>
+      <span class="hint">do once, hours before the demo</span>
+    </div>
+    <div class="steps">
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">1</span>
+          <h3>Log into Snowsight</h3>
+        </div>
+        <p class="why">
+          Demo account <code>ajb85638</code>. In the top-right account picker
+          set <strong>role -> <code>ACCOUNTADMIN</code></strong> and
+          <strong>warehouse -> <code>RAI_XS</code></strong>. Both are required
+          for everything below.
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">2</span>
+          <span class="surface sql">SQL</span>
+          <h3>Schema is visible</h3>
+        </div>
+        <p class="why">
+          Open a <em>SQL Worksheet</em>, set context to
+          <code>ACDM_DEMO.EHAM</code>, expand the schema in the left rail.
+          You should see <strong>13 tables</strong> - <code>FLIGHT</code>,
+          <code>DIM_AIRCRAFT</code>, <code>DIM_STAND</code>,
+          <code>DIM_RUNWAY</code>, <code>DIM_GROUND_HANDLER</code>,
+          <code>DIM_OPERATOR</code>, <code>DIM_FIX</code>,
+          <code>TAXI_TIME_IN</code>, <code>TAXI_TIME_OUT</code>,
+          <code>WEATHER_EVENT</code>, <code>ATFM_REGULATION</code>,
+          <code>STORM_SLOT</code>, <code>SLOT_BLOCK</code>.
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">3</span>
+          <span class="surface sql">SQL</span>
+          <h3>Run the validation pack</h3>
+        </div>
+        <p class="why">
+          Paste <code>data/out/eham_demo_validation.sql</code> into a new
+          worksheet and run it. You should see KLG/AGS/DNATA/MENZIES at 7/5/3/2
+          for Q1, the KL1234 cascade callsigns for Q2, the 5 MS5 candidates
+          for Q4, the storm-window 47 in Q5, KL691 with 137 pax connections
+          for Q6, and 22.2 % CTOT rate for Q10. Anything off here is
+          something the audience would otherwise see live.
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">4</span>
+          <span class="surface notebook">Notebook</span>
+          <h3>Notebook opens</h3>
+        </div>
+        <p class="why">
+          Open <code>rai_code/manual/eham_acdm_demo.ipynb</code> in Snowsight
+          or local Jupyter. Confirm the first cell imports cleanly (PyRel,
+          plotly, networkx, the ontology, the 5 query functions).
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">5</span>
+          <span class="surface chat">SI Chat</span>
+          <h3>Agent is in the picker</h3>
+        </div>
+        <p class="why">
+          Open <em>Snowflake Intelligence</em> from the left nav. The agent
+          picker should list <code>acdm</code>. If it's missing, re-run
+          <code>.venv/bin/python -m agent.deploy deploy</code> or check that
+          your role can see <code>SNOWFLAKE_INTELLIGENCE.AGENTS</code>.
+        </p>
+      </div>
+
+    </div>
+  </section>
+  </div>
+
+  <!-- ============== Phase 2: Warm up ============== -->
+  <div class="ppanel">
+  <section>
+    <div class="section-head">
+      <span class="tag warm">2 - Warm up</span>
+      <h2>Run all 5 acts once to warm every engine</h2>
+      <span class="hint">do this ~10 minutes before the call</span>
+    </div>
+
+    <div class="callout" style="margin-top:0">
+      <strong>One action does it all.</strong>
+      <code>demo_queries.py</code> compiles the ontology and exercises every
+      reasoner the agent will hit on stage - logic (Acts 1, 5), graph (Act 2),
+      derived properties (Act 3), prescriptive (Acts 4, 5). Running it once
+      warms the Snowflake warehouse, the two RAI engines, and the build cache
+      that the notebook and the SI agent share. By the time you open Scene 3
+      in front of the customer, every query is hot.
+    </div>
+
+    <div class="steps">
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">1</span>
+          <span class="surface cli">CLI</span>
+          <h3>Run all 5 acts in one shot</h3>
+        </div>
+        <p class="why">
+          From the project root:
+        </p>
+        <pre><code>.venv/bin/python rai_code/manual/demo_queries.py</code></pre>
+        <p class="why">
+          <strong>Realistic timing.</strong> First cold run: the prescriptive
+          engine has to spin up from suspend (~60-90 s), Snowflake's CDC index
+          builds for any tables that changed since last run (~30-60 s for
+          11 tables on this size of data), Q4 + Q5 each ~5-10 s of solve
+          time including ship-to-engine. End-to-end: <strong>~3-5
+          minutes</strong>. Re-run on warm engines: <strong>~30-45 s</strong>.
+        </p>
+        <p class="why">
+          <strong>All five acts green = you're ready.</strong> Q1 should
+          print KLG 7 / AGS 5 / DNATA 3 / MENZIES 2; Q2 should print 7 lines
+          (KL1234 + 6 downstream); Q4 should print 47 flight assignments;
+          Q5 should print "KL691 delay: Act4=Xmin -> Act5=Ymin" with Y &lt;= 8.
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">2</span>
+          <span class="surface notebook">Notebook</span>
+          <h3>Run all cells end-to-end</h3>
+        </div>
+        <p class="why">
+          With the CLI warm-up done, open the notebook and hit <em>Run all</em>.
+          The model is already compiled and the engines are warm, so each cell
+          is ~3-15 s. Confirm every Plotly chart renders without an error
+          banner.
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="head">
+          <span class="step-num">3</span>
+          <span class="surface chat">SI Chat</span>
+          <h3>Ask the agent two sanity-check questions</h3>
+        </div>
+        <p class="why">
+          From the CLI:
+        </p>
+        <pre><code>.venv/bin/python -m agent.deploy chat "Show TOBT violations by handler"
+.venv/bin/python -m agent.deploy chat "Trace the cascade if KL1234 is late"</code></pre>
+        <p class="why">
+          The first should return KLG 7 / AGS 5 / DNATA 3 / MENZIES 2; the
+          second should list 6 downstream callsigns. Anything else, re-run
+          <code>agent.deploy update</code>.
+        </p>
+      </div>
+
+    </div>
+  </section>
+  </div>
+
+  <!-- ============== Phase 3: Showtime ============== -->
+  <div class="ppanel">
+  <section>
+    <div class="section-head">
+      <span class="tag show">3 - Showtime</span>
+      <h2>The arc - same data, three surfaces, increasing leverage</h2>
+      <span class="hint">~15 min, three scenes, open all three tabs in advance</span>
+    </div>
+
+    <div class="scenes">
+
+      <!-- Scene 1: SQL Worksheet -->
+      <details class="scene sql">
+        <summary>
+          <span class="surface sql">SQL Worksheet</span>
+          <span class="stitle">Scene 1 - "Here's what an analyst already runs"</span>
+        </summary>
+        <div class="scene-body">
+          <p class="pitch">Open <code>ACDM_DEMO.EHAM</code>, paste Q1, hit run.</p>
+          <ol>
+            <li>Show the 13-table schema in the left rail to set up the "now
+                imagine modelling all of this" beat.</li>
+            <li>Run Q1 from <code>data/out/eham_demo_validation.sql</code> -
+                the TOBT compliance audit by handler. Returns KLG 7 / AGS 5 /
+                DNATA 3 / MENZIES 2.</li>
+            <li>Now try to write the cascade query (Act 2) by hand in SQL.
+                Recursive CTE, two edge types, six hops. Time it.</li>
+          </ol>
+          <p class="why" style="margin:0">
+            <strong>The setup.</strong> SQL works for Q1. By the time you're
+            trying to write the cascade, the operator is already on the next
+            call. We move to the model.
+          </p>
+        </div>
+      </details>
+
+      <!-- Scene 2: Notebook -->
+      <details class="scene notebook" open>
+        <summary>
+          <span class="surface notebook">Snowsight Notebook</span>
+          <span class="rpill rules">Rules</span>
+          <span class="rpill graph">Graph</span>
+          <span class="rpill heur">Heuristic</span>
+          <span class="rpill solver">Solver</span>
+          <span class="rpill rule5">Persistent rule</span>
+          <span class="stitle">Scene 2 - "One model, five reasoners, fifteen minutes"</span>
+        </summary>
+        <div class="scene-body">
+          <p class="pitch">
+            Open <code>rai_code/manual/eham_acdm_demo.ipynb</code>. The
+            notebook is self-contained: model imports + Q1 to Q5 with Plotly
+            visuals after each.
+          </p>
+          <p class="why" style="margin:0">
+            Because you already ran it in warm-up, the build cache is hot and
+            re-running each cell is 3-15 s. Hit <em>Run all</em> again and
+            land hard on these five beats:
+          </p>
+          <ol>
+            <li><strong>Act 1 (Rules) - TOBT compliance audit.</strong> Same
+                numbers as the SQL. Difference: the
+                <code>TOBTViolation(Flight)</code> rule is declared once and
+                reused everywhere (the cascade in Act 2 references it).</li>
+            <li><strong>Act 2 (Graph) - rotation cascade from KL1234.</strong>
+                Multi-relational graph over the same model. Six downstream
+                flights across three carriers and two terminals.</li>
+            <li><strong>Act 3 (Heuristic) - MS5 gate-conflict ranking.</strong>
+                Deterministic score expressed entirely as PyRel-derived
+                properties. Eleven candidates ranked; talk-track 5 all
+                surface.</li>
+            <li><strong>Act 4 (Solver) - TSAT re-sequence under storm.</strong>
+                47 flights, 120 1-minute slots, ~5,600 binaries. HiGHS finishes
+                in seconds. Gantt chart shows the optimised sequence.</li>
+            <li><strong>Act 5 (Persistent rule) - operator adds a
+                constraint.</strong> The rule "preserve KL flights with
+                pax_connections > 80" becomes a
+                <code>PreservedFlight(Flight)</code> derived concept on the
+                ontology and an aggregate-delay cap on the LP. Re-solve. The
+                rule isn't a comment in someone's runbook - it lives in the
+                model and every reasoner that touches the model from now on
+                respects it.</li>
+          </ol>
+        </div>
+      </details>
+
+      <!-- Scene 3: SI Chat -->
+      <details class="scene chat">
+        <summary>
+          <span class="surface chat">Snowflake Intelligence</span>
+          <span class="rpill rules">Rules</span>
+          <span class="rpill graph">Graph</span>
+          <span class="rpill heur">Heuristic</span>
+          <span class="rpill solver">Solver</span>
+          <span class="rpill rule5">Persistent rule</span>
+          <span class="stitle">Scene 3 - "Same model, same data, now in plain English"</span>
+        </summary>
+        <div class="scene-body">
+          <p class="pitch">
+            Pick the <code>acdm</code> agent. Three to five questions, each one
+            hits a different reasoner.
+          </p>
+          <ol>
+            <li><span class="rpill rules">Rules</span>
+                <em>"Show me TOBT violations by handler in the last four
+                hours."</em> -&gt; KLG 7 / AGS 5 / DNATA 3 / MENZIES 2.</li>
+            <li><span class="rpill graph">Graph</span>
+                <em>"Trace the rotation impact if KL1234 is late."</em> -&gt;
+                6 downstream flights, three carriers, two terminals.</li>
+            <li><span class="rpill heur">Heuristic</span>
+                <em>"Rank inbound flights by MS5 gate-conflict risk."</em>
+                -&gt; 11 candidates ranked; named talk-track flights all
+                surface.</li>
+            <li><span class="rpill solver">Solver</span>
+                <em>"Re-sequence the storm-window TSATs to minimise weighted
+                delay."</em> -&gt; 47 flights, ~66 % at 0 delay, max delay
+                8 minutes.</li>
+            <li><span class="rpill rule5">Persistent rule</span>
+                <em>"Re-solve, but never delay KL flights with more than 80
+                connecting pax by more than 8 minutes."</em> -&gt; KL691
+                preserved; trade-offs absorbed elsewhere.</li>
+          </ol>
+          <p class="why" style="margin:0">
+            After each answer, expand <em>"Show generated query"</em> to
+            reveal the PyRel the agent ran - closes the loop with what the
+            audience just saw in the notebook.
+          </p>
+        </div>
+      </details>
+
+    </div>
+  </section>
+  </div>
+
+    </div>  <!-- /ppanels -->
+  </div>  <!-- /ptabs -->
+
+  <!-- ============== Question deck (speaker reference) ============== -->
+  <section>
+    <div class="section-head">
+      <span class="tag show">Speaker deck</span>
+      <h2>The 5 acts - what we ask, why it matters, what the result tells us</h2>
+      <span class="hint">numbers below come from a live run against <code>ACDM_DEMO.EHAM</code></span>
+    </div>
+
+    <div class="callout" style="margin-top:0">
+      <strong>How to use this section.</strong>
+      Click an act tab. Each card has the question in plain English (no
+      jargon), why anyone should care (the business pain), what the actual
+      result tells us (real numbers), and a <em>Talk track</em> line you can
+      read verbatim if you blank.
+    </div>
+
+    <div class="qtabs">
+      <input type="radio" name="qt" id="qt1" checked>
+      <input type="radio" name="qt" id="qt2">
+      <input type="radio" name="qt" id="qt3">
+      <input type="radio" name="qt" id="qt4">
+      <input type="radio" name="qt" id="qt5">
+
+      <div class="qtab-bar">
+        <label class="qtab" for="qt1"><span class="qnum">Q1</span><span class="rpill rules">Rules</span><span class="qtitle">TOBT compliance</span></label>
+        <label class="qtab" for="qt2"><span class="qnum">Q2</span><span class="rpill graph">Graph</span><span class="qtitle">Cascade</span></label>
+        <label class="qtab" for="qt3"><span class="qnum">Q3</span><span class="rpill heur">Heuristic</span><span class="qtitle">MS5 ranking</span></label>
+        <label class="qtab" for="qt4"><span class="qnum">Q4</span><span class="rpill solver">Solver</span><span class="qtitle">TSAT re-sequence</span></label>
+        <label class="qtab" for="qt5"><span class="qnum">Q5</span><span class="rpill rule5">Persistent rule</span><span class="qtitle">Preserve KL high-pax</span></label>
+      </div>
+
+      <div class="qpanels">
+
+      <!-- Q1 -->
+      <div class="qpanel">
+        <div class="qcard">
+          <div class="qhead"><span class="qnum">Q1</span><span class="rpill rules">Rules</span><h3>Where are TOBT violations hiding right now?</h3></div>
+          <p class="qsub">Concepts: <code>Flight</code>, <code>GroundHandler</code> - Rule: <code>TOBTViolation(Flight)</code> (|ARDT - TOBT| &gt; 5 min)</p>
+          <div class="qgrid">
+            <div class="narr">
+              <div><span class="label">What we ask, in plain English</span><br>ICAO MS12 says a flight's actual ready time (ARDT) must stay within +/-5 minutes of its target off-block time (TOBT). Beyond that, the TSAT is supposed to be removed and recomputed. We ask: <strong>how many violations did each ground handler let through in the last four hours?</strong></div>
+              <div><span class="label">Why anyone should care</span><br>TOBT discipline is the single biggest hygiene issue in A-CDM. A handler running 5-10 minutes late on every flight doesn't just hurt their own carrier - it inflates demand on the TSAT calculator, distorts the runway sequence, and propagates to every other handler at the airport.</div>
+              <div><span class="label">What the result tells us</span><br><strong>KLG dominates</strong> with 7 violations, averaging +8.6 min late. <strong>AGS</strong> next with 5 at +9.2 min. <strong>DNATA</strong> shows 3 violations but with a <em>negative</em> deviation - calling ready ~9 min early, which is a different problem (it inflates TSAT demand). <strong>MENZIES</strong> is light at 2. <strong>Talk track:</strong> <em>"The rule was written once, in ICAO language, against the ontology. The operator can ask the same question for any time window, any aircraft type, any handler - they're not writing SQL."</em></div>
+            </div>
+            <div>
+              <p class="result-meta">17 violations in the 10:30 - 14:30 window</p>
+              <table>
+                <thead><tr><th>handler</th><th>violations</th><th>avg deviation (min)</th></tr></thead>
+                <tbody>
+                  <tr><td>KLG</td><td class="num">7</td><td class="num">+8.6</td></tr>
+                  <tr><td>AGS</td><td class="num">5</td><td class="num">+9.2</td></tr>
+                  <tr><td>DNATA</td><td class="num">3</td><td class="num">-9.3</td></tr>
+                  <tr><td>MENZIES</td><td class="num">2</td><td class="num">+7.5</td></tr>
+                </tbody>
+              </table>
+              <p class="result-meta">Positive = called ready late; negative = called ready early. Both violate MS12.</p>
+            </div>
+          </div>
+          <figure class="result-fig">
+            <img src="build/figures/act1_tobt_violations.png" alt="Bar chart of TOBT violations by handler">
+            <figcaption>
+              From <code>build/generate_demo_figures.py</code>. Bar height = violation count; bar
+              colour = average ARDT-TOBT deviation (red = late, blue = early).
+              KLG and AGS run late; DNATA runs early. Both directions are MS12
+              violations.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="qpanel">
+        <div class="qcard">
+          <div class="qhead"><span class="qnum">Q2</span><span class="rpill graph">Graph</span><h3>If KL1234 is late, which flights are at risk?</h3></div>
+          <p class="qsub">Concepts: <code>Flight</code>, <code>Stand</code> - Relations: <code>feeds_callsign</code>, <code>slot_blocks</code>, <code>shares_stand</code></p>
+          <div class="qgrid">
+            <div class="narr">
+              <div><span class="label">What we ask, in plain English</span><br>KL1234 inbound from KJFK is 35 minutes late at final approach. Trace the impact across the next 6 hours: which outbound flights, which gates, which crews, which ATFM slots will feel it?</div>
+              <div><span class="label">Why anyone should care</span><br>Existing AODBs do inbound-outbound pairing for the <em>same aircraft</em>. They don't propagate the delay across stand contention and pushback slots to <em>other carriers'</em> flights that share the same gate area or runway slot. Eurocontrol's Network Manager wants this an hour before the current systems surface it.</div>
+              <div><span class="label">What the result tells us</span><br><strong>Six downstream flights</strong> across three carriers (KL, HV, AF) and two terminals are at risk - traced from a single late ALDT input. The rotation chain catches KL1235 and KL1601; the slot-block edge catches HV5821 (Transavia, different alliance) and AF1241 (Air France); the stand-overlap catches KL0407 and KL1402. <strong>Talk track:</strong> <em>"One late ALDT. Three carriers, two terminals. The agent traced this by walking the graph - not by joining tables in a spreadsheet."</em></div>
+            </div>
+            <div>
+              <p class="result-meta">6 downstream flights from KL1234</p>
+              <table>
+                <thead><tr><th>callsign</th><th>via</th><th>stand</th></tr></thead>
+                <tbody>
+                  <tr><td>KL1235</td><td>rotation</td><td>E18</td></tr>
+                  <tr><td>KL0407</td><td>stand contention</td><td>E18</td></tr>
+                  <tr><td>KL1402</td><td>rotation + stand</td><td>E18</td></tr>
+                  <tr><td>KL1601</td><td>rotation</td><td>C08</td></tr>
+                  <tr><td>HV5821</td><td>slot block</td><td>D54</td></tr>
+                  <tr><td>AF1241</td><td>slot block</td><td>F08</td></tr>
+                </tbody>
+              </table>
+              <p class="result-meta">Edges: <code>feeds_callsign</code> = explicit aircraft turn. <code>slot_blocks</code> = pushback contention. <code>shares_stand</code> = same stand, SOBT proximity.</p>
+            </div>
+          </div>
+          <figure class="result-fig">
+            <img src="build/figures/act2_cascade_graph.png" alt="Directed graph of the KL1234 rotation cascade">
+            <figcaption>
+              Multi-relational cascade graph. <strong>Node colour</strong> = carrier (KL blue, HV green,
+              AF red). <strong>Node size</strong> scales with <code>pax_connections</code>.
+              <strong>Border thickness</strong>: thick = arrival, thin = departure;
+              <strong>gold ring</strong> = the seed (KL1234).
+              <strong>Edge colour/style</strong>: blue solid = rotation, red solid =
+              slot_block, purple dotted = stand_share. Arrows show direction of
+              cascade.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="qpanel">
+        <div class="qcard">
+          <div class="qhead"><span class="qnum">Q3</span><span class="rpill heur">Heuristic</span><h3>Which inbound arrivals are most at risk of an MS5 gate conflict?</h3></div>
+          <p class="qsub">Concepts: <code>Flight</code>, <code>Stand</code> - derived: <code>MS5Candidate</code>, <code>ms5_score</code></p>
+          <div class="qgrid">
+            <div class="narr">
+              <div><span class="label">What we ask, in plain English</span><br>Looking at inbound flights with a touchdown estimate (TLDT) in the next 30 minutes, rank them by the probability of a gate conflict at the M-pier (MS5 milestone).</div>
+              <div><span class="label">Why anyone should care</span><br>A stand planner doesn't want a yes/no alarm on every false positive - they want a ranked queue so they can intervene on the top 1-2. The score expresses time pressure, pax connection volume, pier proximity, and WTC fit as derived properties on the ontology.</div>
+              <div><span class="label">What the result tells us</span><br>Eleven candidates. The talk-track five flights (KL1234, DL0036, KL0691, AF1641, BA0432) all surface. <strong>KL0164</strong> tops the list (135 pax, D-pier, lands in 3 min). <strong>KL1234</strong> (the cascade seed from Act 2) is second. <strong>Talk track:</strong> <em>"The score is a derived property on the same Flight entity that gave us the TOBT rule and the cascade graph. Same model, same vocabulary, new column."</em></div>
+            </div>
+            <div>
+              <p class="result-meta">Top candidates by p_conflict</p>
+              <table>
+                <thead><tr><th>inbound</th><th>stand</th><th>pax</th><th>WTC</th><th>score</th></tr></thead>
+                <tbody>
+                  <tr><td>KL0164</td><td>D58</td><td class="num">135</td><td>H</td><td class="num">0.68</td></tr>
+                  <tr><td>KL1234</td><td>E18</td><td class="num">124</td><td>H</td><td class="num">0.65</td></tr>
+                  <tr><td>KL0302</td><td>F06</td><td class="num">114</td><td>H</td><td class="num">0.52</td></tr>
+                  <tr><td>DL0036</td><td>E18</td><td class="num">72</td><td>H</td><td class="num">0.50</td></tr>
+                  <tr><td>KL0691</td><td>F04</td><td class="num">94</td><td>H</td><td class="num">0.43</td></tr>
+                  <tr><td>BA0432</td><td>B26</td><td class="num">14</td><td>M</td><td class="num">0.14</td></tr>
+                  <tr><td>AF1641</td><td>D88</td><td class="num">22</td><td>M</td><td class="num">0.05</td></tr>
+                </tbody>
+              </table>
+              <p class="result-meta">Score formula (all weights in PyRel): 0.40 x time-pressure + 0.35 x pax/150 + 0.15 if pier in {M, G, H} - 0.20 if WTC not in {H, M}.</p>
+            </div>
+          </div>
+          <figure class="result-fig">
+            <img src="build/figures/act3_ms5_ranking.png" alt="Horizontal bar chart of MS5 conflict scores">
+            <figcaption>
+              Horizontal bar of <code>ms5_score</code> per arrival. The five
+              talk-track candidates (KL1234, DL0036, KL0691, AF1641, BA0432) are
+              highlighted in orange; the rest in pale blue. All scores come from a
+              derived <code>Flight.ms5_score</code> property on the same ontology
+              the other acts read from.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="qpanel">
+        <div class="qcard">
+          <div class="qhead"><span class="qnum">Q4</span><span class="rpill solver">Solver</span><h3>What is the optimal TSAT sequence under the storm?</h3></div>
+          <p class="qsub">Decision: <code>FlightSlot.assign_base</code> (binary) - solver: HiGHS</p>
+          <div class="qgrid">
+            <div class="narr">
+              <div><span class="label">What we ask, in plain English</span><br>It's 14:30. A thunderstorm crosses 18C and 27 from 15:00 to 17:00. 47 outbound flights have TSAT in that window. Single-runway departures off 18L. Constraints: each flight in exactly one slot, no two flights in the same slot, no flight pushing before its SOBT, at most 2 simultaneous pushes per pier. Objective: minimise total delay weighted by pax connections and ATFM penalty.</div>
+              <div><span class="label">Why anyone should care</span><br>Manual re-sequencing of 47 flights with 4 constraints isn't tractable in 5 minutes. Today the handoff between AMAN/DMAN and the duty manager is "best effort". The agent gives the controller a provably-optimal sequence to argue against.</div>
+              <div><span class="label">What the result tells us</span><br>~5,600 binary variables, ~370 constraints. HiGHS solves in <strong>under 10 seconds</strong>. <strong>66% of flights</strong> (31 of 47) keep their original schedule. The other 16 absorb a 1-8 minute delay each. Total delay redistributed favours high-pax-conn flights. <strong>Talk track:</strong> <em>"The same model that flagged the TOBT violations and traced the cascade is telling the solver what's allowed. There's no separate optimisation data mart."</em></div>
+            </div>
+            <div>
+              <p class="result-meta">Sample of the optimised sequence (15 of 47 rows)</p>
+              <table>
+                <thead><tr><th>callsign</th><th>op</th><th>pier</th><th>min<br>offset</th><th>delay<br>(min)</th><th>pax</th></tr></thead>
+                <tbody>
+                  <tr><td>KL0669</td><td>KL</td><td>C</td><td class="num">0</td><td class="num">8</td><td class="num">88</td></tr>
+                  <tr><td>KL0842</td><td>KL</td><td>D</td><td class="num">1</td><td class="num">5</td><td class="num">71</td></tr>
+                  <tr><td>KL0407</td><td>KL</td><td>E</td><td class="num">2</td><td class="num">2</td><td class="num">98</td></tr>
+                  <tr><td>KL0144</td><td>KL</td><td>M</td><td class="num">3</td><td class="num">6</td><td class="num">59</td></tr>
+                  <tr><td>KL0256</td><td>KL</td><td>D</td><td class="num">4</td><td class="num">0</td><td class="num">44</td></tr>
+                  <tr><td>KL1167</td><td>KL</td><td>E</td><td class="num">10</td><td class="num">0</td><td class="num">107</td></tr>
+                  <tr><td>KL1402</td><td>KL</td><td>E</td><td class="num">21</td><td class="num">1</td><td class="num">42</td></tr>
+                  <tr><td>KL691</td><td>KL</td><td>F</td><td class="num">25</td><td class="num">0</td><td class="num">137</td></tr>
+                </tbody>
+              </table>
+              <p class="result-meta"><strong>min offset</strong> = minutes from storm start (15:00). <strong>delay</strong> = slot.absolute_min - SOBT (in minutes). Solver: HiGHS open-source MIP.</p>
+            </div>
+          </div>
+          <figure class="result-fig">
+            <img src="build/figures/act4_tsat_gantt.png" alt="Gantt chart of optimised 18L departure sequence">
+            <figcaption>
+              Gantt of the optimised 18L sequence over the 120-minute storm window.
+              Each bar = one departure occupying one 1-minute slot. Colour scale =
+              delay relative to SOBT (green = on schedule, red = pushed). Constraints:
+              one flight per slot, no push before SOBT, &lt;= 1 simultaneous push per
+              pier, heavy-to-non-heavy needs +1 min wake separation.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      <!-- Q5 -->
+      <div class="qpanel">
+        <div class="qcard">
+          <div class="qhead"><span class="qnum">Q5</span><span class="rpill rule5">Persistent rule</span><h3>Re-solve with "never delay KL high-pax flights more than 8 minutes"</h3></div>
+          <p class="qsub">Derived: <code>PreservedFlight(Flight)</code> - constraint: aggregate-delay cap on the LP</p>
+          <div class="qgrid">
+            <div class="narr">
+              <div><span class="label">What we ask, in plain English</span><br>The operator types a rule: "never delay KL flights with more than 80 connecting passengers by more than 8 minutes from SOBT for runway re-sequencing. We absorb the delay elsewhere." Add the rule to the model. Re-solve.</div>
+              <div><span class="label">Why anyone should care</span><br>This kind of institutional knowledge today lives in a senior controller's head, a runbook PDF, or a spreadsheet override that gets lost the next time someone re-installs Excel. By writing it as a derived concept on the ontology, the rule is stored alongside the data and respected by every reasoner that touches the same model - not just on this re-solve, but from now on. The next operator who joins inherits it automatically.</div>
+              <div><span class="label">What the result tells us</span><br>The rule fires on <strong>17 KL flights</strong> in the storm window (those with pax_connections > 80). KL691 to RJTT (137 pax) stays at <strong>0 minutes delay</strong>. Other flights absorb small additional delays to make room. Total weighted delay increases slightly - that's the trade-off the operator just made explicit and persisted. <strong>Talk track:</strong> <em>"The operator's instinct just became a derived concept on the ontology. Every reasoner that touches the same model from now on respects it - not just this solver, not just this conversation. Tomorrow morning's controller inherits it automatically."</em></div>
+            </div>
+            <div>
+              <p class="result-meta">Before / after for the protected KL flights</p>
+              <table>
+                <thead><tr><th>callsign</th><th>dest</th><th>pax conn</th><th>Act 4<br>delay (min)</th><th>Act 5<br>delay (min)</th></tr></thead>
+                <tbody>
+                  <tr><td>KL691</td><td>RJTT</td><td class="num">137</td><td class="num">0</td><td class="num">0</td></tr>
+                  <tr><td>KL0708</td><td>EIDW</td><td class="num">166</td><td class="num">0</td><td class="num">0</td></tr>
+                  <tr><td>KL0624</td><td>ESSA</td><td class="num">163</td><td class="num">0</td><td class="num">0</td></tr>
+                  <tr><td>KL0615</td><td>EKCH</td><td class="num">162</td><td class="num">1</td><td class="num">1</td></tr>
+                  <tr><td>KL0407</td><td>EPWA</td><td class="num">98</td><td class="num">2</td><td class="num">2</td></tr>
+                </tbody>
+              </table>
+              <p class="result-meta">The rule is a hard cap: <code>sum_s assign[f, s] * (slot.absolute_min - sobt_min) &lt;= 8</code> for every <code>PreservedFlight</code>. The solver respects it on every future re-solve as long as the rule lives in the ontology.</p>
+            </div>
+          </div>
+          <figure class="result-fig">
+            <img src="build/figures/act5_preservation_delta.png" alt="Per-flight delay change between Act 4 and Act 5">
+            <figcaption>
+              Side-by-side bars showing per-flight delay (in minutes) under
+              <span style="color:#1f77b4">Act 4 (baseline LP)</span> vs
+              <span style="color:#5cb85c">Act 5 (with the persistent
+              preservation rule)</span>. The orange band marks KL691.
+              <strong>Protected KL flights with prior Act 4 delays</strong>
+              (KL0624, DL0199, KL0401, KL1081...) are pushed earlier in Act 5;
+              <strong>non-preserved flights</strong> (HV1070, KL1148, KL0692,
+              DL0323, KL0100) absorb the delta. Same model, same data, the
+              operator's rule made it.
+            </figcaption>
+          </figure>
+        </div>
+      </div>
+
+      </div>  <!-- /qpanels -->
+    </div>  <!-- /qtabs -->
+  </section>
+
+  <div class="callout">
+    <strong>Want to reset?</strong>
+    <code>.venv/bin/python -m agent.deploy teardown</code> removes the SI
+    agent and its sprocs. The data (<code>ACDM_DEMO.EHAM</code>) is untouched.
+    To re-deploy: <code>agent.deploy deploy</code>. Engines auto-suspend
+    after a few idle minutes; they're already named, so they stay configured
+    across teardown / redeploy.
+  </div>
+
+</div>
+</body>
+</html>
