@@ -59,6 +59,11 @@ Cortex agent all reference the same `eham_acdm` model. Adding a rule for Act
 - All tables have change-tracking enabled (required for RAI's CDC).
 - The Cortex agent is registered in `SNOWFLAKE_INTELLIGENCE.AGENTS` and its
   stored procedures live in `ACDM_DEMO.RAI_AGENT`.
+- The Snowsight notebook lives in `ACDM_DEMO.NOTEBOOKS.EHAM_ACDM_DEMO`,
+  backed by stage `ACDM_DEMO.NOTEBOOKS.ACDM_NOTEBOOK_STAGE` with the three
+  files (notebook + `eham_acdm.py` + `demo_queries.py`) under a
+  `planes/` subfolder so it browses cleanly as a workspace folder named
+  "planes" in Snowsight's Files view.
 
 ## Reasoner engines
 
@@ -78,6 +83,7 @@ notebook AND the deployed agent.
 # regenerates RUNNING.html figures. Ends with PASS/FAIL summary.
 .venv/bin/python prep_demo.py
 .venv/bin/python prep_demo.py --skip-figures --skip-chat  # fast iteration
+.venv/bin/python prep_demo.py --skip-snowsight            # skip stage upload
 .venv/bin/python prep_demo.py --redeploy                  # force agent redeploy
 
 # Smoke-test the ontology and all 5 queries:
@@ -115,7 +121,8 @@ notebook AND the deployed agent.
 | `agent.deploy status` (or `update`)              | ~8 s      | ~8 s      |
 | Live `agent.deploy chat` Q1 round-trip           | ~85 s     | ~65 s     |
 | Figure regeneration (5 PNGs via kaleido)         | ~30 s     | ~30 s     |
-| **`prep_demo.py` total**                         | **~7-8 min** | **~6 min**  |
+| Snowsight notebook PUT + ALTER LIVE VERSION      | ~25 s     | ~25 s     |
+| **`prep_demo.py` total**                         | **~8 min**| **~6 min**  |
 
 The warm CLI smoke test is bottlenecked by the two LP solves (Q4, Q5 ~80 s each
 including ship-to-engine and result materialisation; HiGHS itself runs in ms).

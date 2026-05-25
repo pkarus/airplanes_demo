@@ -100,6 +100,16 @@ def q1_tobt_violations_by_handler():
         .sort_values("violations", ascending=False)
         .reset_index(drop=True)
     )
+    # Force RAI's Int128 column into plain int64 so Snowsight's Arrow-based
+    # DataFrame renderer (and Plotly, downstream) can consume it. astype()
+    # can fail on the Int128 extension type in some pandas/pyarrow versions,
+    # so we route via Python int which Int128 supports unconditionally.
+    if "violations" in df.columns:
+        df["violations"] = [int(v) if v is not None else 0 for v in df["violations"]]
+    if "avg_deviation_min" in df.columns:
+        df["avg_deviation_min"] = [
+            float(v) if v is not None else 0.0 for v in df["avg_deviation_min"]
+        ]
     return df
 
 
@@ -290,7 +300,7 @@ def q3_ms5_conflict_ranking():
     )
     for col in ("pax_conn", "minutes_to_land"):
         if col in df.columns:
-            df[col] = df[col].astype("int64")
+            df[col] = [int(v) if v is not None else 0 for v in df[col]]
     return df
 
 
@@ -469,11 +479,12 @@ def _build_storm_problem(extra_preservation: bool = False):
         .sort_values("minute_offset")
         .reset_index(drop=True)
     )
-    # Cast RAI's Int128Array columns to int64 so pandas/Plotly downstream
-    # arithmetic (e.g. `minute_offset + 1`) works on plain numpy types.
+    # Force RAI's Int128 columns to plain int so pandas/Plotly downstream
+    # arithmetic and Snowsight's Arrow renderer work. Route via Python int
+    # (Int128 supports __int__) which is more reliable than astype("int64").
     for col in ("minute_offset", "abs_min", "sobt_min", "delay_min", "pax_conn"):
         if col in fs.columns:
-            fs[col] = fs[col].astype("int64")
+            fs[col] = [int(v) if v is not None else 0 for v in fs[col]]
     return fs, si
 
 

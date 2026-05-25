@@ -33,6 +33,21 @@ AGENT_NAME = "acdm"
 DB = "ACDM_DEMO"
 SCHEMA = "EHAM"
 
+# Snowsight notebook resource lives in its own schema (separate from EHAM so
+# accidental DROP SCHEMA EHAM doesn't take it out). Files live under a
+# 'planes/' folder so the stage browses as a workspace folder named 'planes'
+# in Snowsight's Workspaces > Files view.
+NB_SCHEMA = "NOTEBOOKS"
+NB_STAGE = "ACDM_NOTEBOOK_STAGE"
+NB_FOLDER = "planes"
+NB_NAME = "EHAM_ACDM_DEMO"
+NB_MAIN = "eham_acdm_demo_snowsight.ipynb"
+NB_SOURCES = (
+    ROOT / "rai_code" / "manual" / "eham_acdm.py",
+    ROOT / "rai_code" / "manual" / "demo_queries.py",
+    ROOT / "rai_code" / "manual" / NB_MAIN,
+)
+
 GREEN = "\033[32m"
 RED = "\033[31m"
 YELLOW = "\033[33m"
@@ -464,6 +479,125 @@ def check_figures(skip: bool) -> CheckResult:
     )
 
 
+def _snow_exec(stmt: str) -> str:
+    """Run a SQL statement and return raw stdout (raise on non-zero)."""
+    r = subprocess.run(
+        [SNOW, "sql", "-c", SNOW_CONN, "-q", stmt],
+        capture_output=True, text=True, timeout=120,
+    )
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip()[-400:])
+    return r.stdout
+
+
+def check_snowsight_notebook(skip: bool) -> CheckResult:
+    """Ensure the Snowsight notebook is up to date.
+
+    Idempotent: creates the schema + stage + notebook if missing, then PUTs
+    the three source files (overwriting), then ALTER NOTEBOOK ADD LIVE
+    VERSION FROM LAST so the next Snowsight open picks up the new files.
+    """
+    if skip:
+        return CheckResult(
+            name="Snowsight notebook (--skip-snowsight)",
+            passed=True, detail="not refreshed; existing notebook unchanged",
+        )
+
+    missing = [str(p) for p in NB_SOURCES if not p.is_file()]
+    if missing:
+        return CheckResult(
+            name="Snowsight notebook refresh",
+            passed=False, detail=f"missing source files: {missing}",
+        )
+
+    # Ensure schema + stage exist (CREATE IF NOT EXISTS).
+    try:
+        _snow_exec(
+            f"CREATE SCHEMA IF NOT EXISTS {DB}.{NB_SCHEMA}; "
+            f"CREATE STAGE IF NOT EXISTS {DB}.{NB_SCHEMA}.{NB_STAGE} "
+            f"DIRECTORY = (ENABLE = TRUE) "
+            f"ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE');"
+        )
+    except RuntimeError as e:
+        return CheckResult(
+            name="Snowsight notebook refresh",
+            passed=False, detail=f"schema/stage setup failed: {e}",
+        )
+
+    # PUT each source file into the 'planes/' subfolder. Use
+    # AUTO_COMPRESS=FALSE so the .ipynb stays a plain file (Snowsight needs
+    # to read it directly).
+    put_stmt = ";\n".join(
+        f"PUT file://{p.absolute()} @{DB}.{NB_SCHEMA}.{NB_STAGE}/{NB_FOLDER}/ "
+        f"AUTO_COMPRESS=FALSE OVERWRITE=TRUE"
+        for p in NB_SOURCES
+    )
+    try:
+        _snow_exec(put_stmt + ";")
+    except RuntimeError as e:
+        return CheckResult(
+            name="Snowsight notebook refresh",
+            passed=False, detail=f"stage PUT failed: {e}",
+        )
+
+    # Create-or-replace the Notebook resource. CREATE OR REPLACE is safe
+    # here because the resource has no conversation state of its own (any
+    # interactive kernel state lives in the user's Snowsight session, not
+    # in the resource).
+    try:
+        _snow_exec(
+            f"CREATE OR REPLACE NOTEBOOK {DB}.{NB_SCHEMA}.{NB_NAME} "
+            f"FROM '@{DB}.{NB_SCHEMA}.{NB_STAGE}/{NB_FOLDER}' "
+            f"MAIN_FILE = '{NB_MAIN}' "
+            f"QUERY_WAREHOUSE = RAI_XS "
+            f"RUNTIME_NAME = 'SYSTEM$BASIC_RUNTIME' "
+            f"COMMENT = 'EHAM A-CDM Decision Hub - 5-act PyRel demo. Stage folder: {NB_FOLDER}/';"
+        )
+        _snow_exec(
+            f"ALTER NOTEBOOK {DB}.{NB_SCHEMA}.{NB_NAME} "
+            f"ADD LIVE VERSION FROM LAST;"
+        )
+    except RuntimeError as e:
+        return CheckResult(
+            name="Snowsight notebook refresh",
+            passed=False, detail=f"notebook ALTER failed: {e}",
+        )
+
+    return CheckResult(
+        name=f"Snowsight notebook '{NB_NAME}' refreshed",
+        passed=True,
+        detail=(
+            f"3 files PUT to @{DB}.{NB_SCHEMA}.{NB_STAGE}/{NB_FOLDER}/; "
+            f"live version updated"
+        ),
+        warnings=[
+            "first open: click 'Packages' in the toolbar and add relationalai==1.2.2, plotly, networkx",
+        ],
+    )
+
+
+def _snowsight_url() -> str:
+    """Return the canonical Snowsight URL for the notebook.
+
+    The web URL format is org-based: app.snowflake.com/<ORG>/<ACCOUNT>/...
+    We delegate to `snow notebook get-url`, which has the canonical mapping
+    baked in (it knows about org names, account renames, region aliases).
+    Falls back to a Snowflake-stage URI if anything goes wrong.
+    """
+    try:
+        out = subprocess.run(
+            [SNOW, "notebook", "get-url", f"{DB}.{NB_SCHEMA}.{NB_NAME}",
+             "-c", SNOW_CONN],
+            capture_output=True, text=True, timeout=30,
+        )
+        url = out.stdout.strip().splitlines()[-1] if out.returncode == 0 else ""
+        if url.startswith("https://"):
+            return url
+    except Exception:  # noqa: BLE001
+        pass
+    return f"snow://notebook/{DB}.{NB_SCHEMA}.{NB_NAME}"
+
+
 # =============================================================================
 # Driver
 # =============================================================================
@@ -478,6 +612,8 @@ def main() -> int:
                    help="Don't regenerate the RUNNING.html PNGs (faster).")
     p.add_argument("--skip-chat", action="store_true",
                    help="Don't make a live agent.deploy chat call (faster but less coverage).")
+    p.add_argument("--skip-snowsight", action="store_true",
+                   help="Don't refresh the Snowsight notebook on the stage.")
     p.add_argument("--redeploy", action="store_true",
                    help="Force a full agent redeploy even if status looks healthy.")
     args = p.parse_args()
@@ -520,6 +656,9 @@ def main() -> int:
     _banner("[bonus] Demo figures regenerated for RUNNING.html")
     results.append(_run_check("figures", lambda: check_figures(args.skip_figures)))
 
+    _banner("[bonus] Snowsight notebook synced to Snowflake stage")
+    results.append(_run_check("snowsight", lambda: check_snowsight_notebook(args.skip_snowsight)))
+
     # ---- Summary ------------------------------------------------------
     print()
     print(f"{BOLD}Readiness summary{RESET}")
@@ -532,19 +671,21 @@ def main() -> int:
 
     print()
     if pass_count == total:
+        url = _snowsight_url()
         msg = textwrap.dedent(f"""
             {GREEN}{BOLD}*** DEMO IS READY ***{RESET}
 
             {GREEN}{pass_count}/{total} checks passed.{RESET}
 
-            Engines warm, agent live, figures fresh. Next moves:
+            Engines warm, agent live, notebook synced. Next moves:
 
-              {DIM}1.{RESET} Open Snowsight in your browser, switch to role ACCOUNTADMIN and
-                 warehouse RAI_XS. Confirm '{AGENT_NAME}' is in the Snowflake
-                 Intelligence agent picker.
-              {DIM}2.{RESET} Open RUNNING.html in another tab as your speaker reference.
-              {DIM}3.{RESET} Open rai_code/manual/eham_acdm_demo.ipynb in Jupyter or Snowsight
-                 for the live walkthrough.
+              {DIM}1.{RESET} Open Snowsight, switch to role ACCOUNTADMIN and warehouse
+                 RAI_XS. Confirm '{AGENT_NAME}' is in the Snowflake Intelligence
+                 agent picker.
+              {DIM}2.{RESET} Open the Snowsight notebook (first run only: click 'Packages'
+                 and add relationalai==1.2.2, plotly, networkx):
+                 {BOLD}{url}{RESET}
+              {DIM}3.{RESET} Open RUNNING.html in another tab as your speaker reference.
 
             {DIM}Reset everything: .venv/bin/python -m agent.deploy teardown{RESET}
         """).strip()
