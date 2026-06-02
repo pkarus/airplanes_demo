@@ -32,7 +32,7 @@ from relationalai.config import SnowflakeConnection, create_config
 AGENT_NAME = "acdm"
 DATABASE = "ACDM_DEMO"
 SCHEMA = "RAI_AGENT"
-AGENT_SCHEMA = None  # agent lives in {DATABASE}.{SCHEMA} = ACDM_DEMO.RAI_AGENT
+AGENT_SCHEMA = "SNOWFLAKE_INTELLIGENCE.AGENTS"  # agent must live here to appear in the Snowflake Intelligence picker; sprocs stay in {DATABASE}.{SCHEMA}
 WAREHOUSE = "RAI_XS"
 
 

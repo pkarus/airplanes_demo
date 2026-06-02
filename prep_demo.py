@@ -544,6 +544,12 @@ def check_snowsight_notebook(skip: bool) -> CheckResult:
     # here because the resource has no conversation state of its own (any
     # interactive kernel state lives in the user's Snowsight session, not
     # in the resource).
+    #
+    # EXTERNAL_ACCESS_INTEGRATIONS is required: cell 0 does a
+    # `pip install relationalai`, and on the SYSTEM$BASIC_RUNTIME container a
+    # fresh kernel has no PyPI egress without it. CREATE OR REPLACE does NOT
+    # carry over a UI-set integration, so set it here or every redeploy
+    # silently re-breaks the first cell on a fresh container.
     try:
         _snow_exec(
             f"CREATE OR REPLACE NOTEBOOK {DB}.{NB_SCHEMA}.{NB_NAME} "
@@ -551,6 +557,7 @@ def check_snowsight_notebook(skip: bool) -> CheckResult:
             f"MAIN_FILE = '{NB_MAIN}' "
             f"QUERY_WAREHOUSE = RAI_XS "
             f"RUNTIME_NAME = 'SYSTEM$BASIC_RUNTIME' "
+            f"EXTERNAL_ACCESS_INTEGRATIONS = (PYPI_ACCESS_INTEGRATION) "
             f"COMMENT = 'EHAM A-CDM Decision Hub - 5-act PyRel demo. Stage folder: {NB_FOLDER}/';"
         )
         _snow_exec(
